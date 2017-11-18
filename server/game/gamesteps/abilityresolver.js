@@ -2,7 +2,6 @@ const _ = require('underscore');
 
 const BaseStepWithPipeline = require('./basestepwithpipeline.js');
 const SimpleStep = require('./simplestep.js');
-const SelectChoice = require('./SelectChoice.js');
 
 class AbilityResolver extends BaseStepWithPipeline {
     constructor(game, context) {
@@ -14,17 +13,12 @@ class AbilityResolver extends BaseStepWithPipeline {
             new SimpleStep(game, () => this.createSnapshot()),
             new SimpleStep(game, () => this.resolveEarlyTargets()),
             new SimpleStep(game, () => this.waitForTargetResolution(true)),
-            new SimpleStep(game, () => this.game.pushAbilityContext('card', context.source, 'cost')),
             new SimpleStep(game, () => this.resolveCosts()),
             new SimpleStep(game, () => this.waitForCostResolution()),
-            new SimpleStep(game, () => this.markActionAsTaken()),
             new SimpleStep(game, () => this.payCosts()),
-            new SimpleStep(game, () => this.game.popAbilityContext()),
-            new SimpleStep(game, () => this.game.pushAbilityContext('card', context.source, 'effect')),
             new SimpleStep(game, () => this.resolveTargets()),
             new SimpleStep(game, () => this.waitForTargetResolution()),
-            new SimpleStep(game, () => this.initiateAbility()),
-            new SimpleStep(game, () => this.game.popAbilityContext())
+            new SimpleStep(game, () => this.initiateAbility())
         ]);
     }
 
@@ -35,12 +29,6 @@ class AbilityResolver extends BaseStepWithPipeline {
     createSnapshot() {
         if(['character', 'holding', 'attachment'].includes(this.context.source.getType())) {
             this.context.cardStateWhenInitiated = this.context.source.createSnapshot();
-        }
-    }
-
-    markActionAsTaken() {
-        if(this.context.ability.isAction() && !this.cancelled) {
-            this.game.markActionAsTaken();
         }
     }
 
@@ -67,10 +55,6 @@ class AbilityResolver extends BaseStepWithPipeline {
         if(this.cancelled) {
             return;
         }
-        if(this.context.ability.limit) {
-            this.context.ability.limit.increment();
-        }
-
         this.context.ability.payCosts(this.context);
     }
 
@@ -108,19 +92,12 @@ class AbilityResolver extends BaseStepWithPipeline {
         }
 
         _.each(this.targetResults, result => {
-            if(result.mode === 'ring') {
-                this.context.rings[result.name] = result.value;
-                if(result.name === 'target') {
+            if(result.name === 'target') {
+                if(result.mode === 'ring') {
                     this.context.ring = result.value;
-                }
-            } else if(result.mode === 'select') {
-                this.context.selects[result.name] = new SelectChoice(result.value);
-                if(result.name === 'target') {
+                } else if(result.mode === 'select') {
                     this.context.select = result.value;
-                }
-            } else {
-                this.context.targets[result.name] = result.value;
-                if(result.name === 'target') {
+                } else {
                     this.context.target = result.value;
                 }
             }

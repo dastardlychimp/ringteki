@@ -2,7 +2,6 @@ const _ = require('underscore');
 const AbilityTargetCard = require('./AbilityTargets/AbilityTargetCard.js');
 const AbilityTargetRing = require('./AbilityTargets/AbilityTargetRing.js');
 const AbilityTargetSelect = require('./AbilityTargets/AbilityTargetSelect.js');
-const Costs = require('./costs.js');
 /**
  * Base class representing an ability that can be done by the player. This
  * includes card actions, reactions, interrupts, playing a card, marshaling a
@@ -25,9 +24,6 @@ class BaseAbility {
     constructor(properties) {
         this.cost = this.buildCost(properties.cost);
         this.targets = this.buildTargets(properties);
-        if(properties.max) {
-            this.cost.push(Costs.playMax());
-        }
     }
 
     buildCost(cost) {
@@ -128,26 +124,26 @@ class BaseAbility {
      * @returns {Boolean}
      */
     canResolveTargets(context) {
-        /*
-        const ValidTypes = ['character', 'attachment', 'location', 'event'];
-        return _.all(this.targets, (targetProperties, name) => {
-            if(name === 'select') {
-                return true;
-            }
-            if(name === 'ring') {
-                return _.any(context.game.rings, ring => targetProperties.ringCondition(ring, context));
-            }
-            return context.game.allCards.any(card => {
-                if(!ValidTypes.includes(card.getType())) {
-                    return false;
-                }
-
-                return targetProperties.cardCondition(card, context);
-            });
-        });
-        */
         if(this.targets.length > 0) {
-            return this.targets.every(target => target.canResolve(context));
+            return this.targets.every(target => {
+                let dependsOn = target.properties.dependsOn;
+                if(!dependsOn) {
+                    return target.canResolve(context);
+                }
+                let dependsOnTarget = _.find(this.targets, t => t.name === dependsOn);
+                return _.any(dependsOnTarget.getAllLegalTargets(context), t => {
+                    if(dependsOnTarget.mode === 'select') {
+                        context.selects[dependsOn] = t;
+                        return target.canResolve(context);
+                    }
+                    if(dependsOnTarget.mode === 'ring') {
+                        context.rings[dependsOn] = t;
+                        return target.canResolve(context);
+                    }
+                    context.targets[dependsOn] = t;
+                    return target.canResolve(context);
+                });
+            });
         }
         return this.canPayCosts(context);
     }
@@ -188,7 +184,7 @@ class BaseAbility {
     }
 
     isCardAbility() {
-        return true;
+        return false;
     }
 }
 

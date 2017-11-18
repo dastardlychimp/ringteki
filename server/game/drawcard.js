@@ -9,7 +9,6 @@ const PlayCharacterAction = require('./playcharacteraction.js');
 const DuplicateUniqueAction = require('./duplicateuniqueaction.js');
 
 const StandardPlayActions = [
-    new SetupCardAction(),
     new DynastyCardAction(),
     new PlayAttachmentAction(),
     new PlayCharacterAction(),
@@ -153,7 +152,7 @@ class DrawCard extends BaseCard {
         clone.isHonored = this.isHonored;
         clone.isDishonored = this.isDishonored;
         clone.parent = this.parent;
-        clone.fate = this.power;
+        clone.fate = this.fate;
         clone.traits = Object.assign({}, this.traits);
         clone.militarySkillModifier = this.militarySkillModifier;
         clone.politicalSkillModifier = this.politicalSkillModifier;
@@ -363,6 +362,9 @@ class DrawCard extends BaseCard {
     }
     
     getSkillFromGlory() {
+        if(!this.allowGameAction('affectedByHonor')) {
+            return 0;
+        }
         if(this.isHonored) {
             return this.getGlory();
         } else if(this.isDishonored) {
@@ -419,7 +421,7 @@ class DrawCard extends BaseCard {
     }
 
     canBeBypassedByCovert() {
-        return !this.isCovert();
+        return !this.isCovert() && this.type === 'character' && this.location === 'play area';
     }
 
     useCovertToBypass(targetCard) {
@@ -491,7 +493,7 @@ class DrawCard extends BaseCard {
             if(!location.includes(this.location) && this.location !== 'hand') {
                 return false;
             }
-        } else if(!this.location.includes('province') || this.facedown) {
+        } else if(!this.location.includes('province')) {
             return false;
         }
         return super.canTriggerAbilities();
@@ -529,6 +531,19 @@ class DrawCard extends BaseCard {
         return StandardPlayActions
             .concat(this.abilities.playActions)
             .concat(super.getActions());
+    }
+
+    /**
+     * Removes all attachments from this card.
+     */
+    removeAllAttachments() {
+        let events = this.attachments.map(attachment => {
+            return {
+                name: 'onCardLeavesPlay',
+                params: { card: attachment },
+            };
+        });
+        this.game.raiseMultipleEvents(events);
     }
 
     removeAttachment(attachment) {
